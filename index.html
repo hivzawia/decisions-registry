@@ -502,6 +502,8 @@ function fromDbRow(r){
 
 const $ = (id) => document.getElementById(id);
 
+let editingProjectIndex = null;
+
 function recomputeTotalValue(){
   const total = pendingProjects.reduce((sum,p)=> sum + (Number(p.value)||0), 0);
   $('f_value').value = total ? total : '';
@@ -515,10 +517,11 @@ function renderProjectsList(){
     return;
   }
   box.innerHTML = pendingProjects.map((p, i)=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;background:#f7f5ee;border:1px solid var(--line,#e5e0d2);border-radius:5px;padding:6px 10px;gap:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;background:${i===editingProjectIndex ? '#fdf3d9' : '#f7f5ee'};border:1px solid var(--line,#e5e0d2);border-radius:5px;padding:6px 10px;gap:8px;">
       <span style="font-size:13px;flex:1;">
         <strong>${p.name}</strong>${p.company ? ' — '+p.company : ''}${p.value ? ' — '+Number(p.value).toLocaleString('en-US',{minimumFractionDigits:3}) : ''}
       </span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="editProjectAt(${i})" style="padding:2px 8px;">تعديل</button>
       <button type="button" class="btn btn-ghost btn-sm" onclick="removeProjectAt(${i})" style="padding:2px 8px;">حذف</button>
     </div>
   `).join('');
@@ -526,20 +529,40 @@ function renderProjectsList(){
 }
 window.removeProjectAt = function(i){
   pendingProjects.splice(i, 1);
+  if(editingProjectIndex === i){ cancelProjectEdit(); }
   renderProjectsList();
 };
+window.editProjectAt = function(i){
+  const p = pendingProjects[i];
+  $('f_projectInput').value = p.name || '';
+  $('f_projectCompanyInput').value = p.company || '';
+  $('f_projectValueInput').value = p.value || '';
+  editingProjectIndex = i;
+  $('btnAddProject').textContent = '✓ تحديث المشروع';
+  renderProjectsList();
+};
+function cancelProjectEdit(){
+  editingProjectIndex = null;
+  $('btnAddProject').textContent = '+ إضافة مشروع';
+  $('f_projectInput').value = ''; $('f_projectCompanyInput').value = ''; $('f_projectValueInput').value = '';
+}
 $('btnAddProject').addEventListener('click', ()=>{
   const nameInput = $('f_projectInput');
   const companyInput = $('f_projectCompanyInput');
   const valueInput = $('f_projectValueInput');
   const name = nameInput.value.trim();
   if(!name) return;
-  pendingProjects.push({
+  const entry = {
     name,
     company: companyInput.value.trim(),
     value: valueInput.value ? Number(valueInput.value) : null
-  });
-  nameInput.value = ''; companyInput.value = ''; valueInput.value = '';
+  };
+  if(editingProjectIndex !== null){
+    pendingProjects[editingProjectIndex] = entry;
+  } else {
+    pendingProjects.push(entry);
+  }
+  cancelProjectEdit();
   renderProjectsList();
 });
 $('f_projectInput').addEventListener('keydown', (e)=>{
@@ -739,6 +762,8 @@ function closeModal(){
   $('decisionForm').reset();
   editingId = null;
   pendingProjects = [];
+  editingProjectIndex = null;
+  $('btnAddProject').textContent = '+ إضافة مشروع';
 }
 
 function openAdd(){
@@ -747,6 +772,8 @@ function openAdd(){
   $('f_direction').value = currentTab;
   toggleDirectionFields();
   pendingProjects = [];
+  editingProjectIndex = null;
+  $('btnAddProject').textContent = '+ إضافة مشروع';
   renderProjectsList();
   openModal();
 }
@@ -766,6 +793,8 @@ window.openEdit = function(id){
   } else {
     pendingProjects = [];
   }
+  editingProjectIndex = null;
+  $('btnAddProject').textContent = '+ إضافة مشروع';
   renderProjectsList();
   $('f_number').value = d.number || '';
   $('f_year').value = d.year || '';
