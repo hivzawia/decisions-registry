@@ -148,6 +148,7 @@
   .dot-ok{background:var(--ok);}
   .dot-warn{background:var(--warn);}
   .dot-stop{background:var(--stop);}
+  .dot-none{background:#9a9a9a;}
   .row-actions{display:flex;gap:6px;}
   .empty-state{padding:60px 20px;text-align:center;color:var(--muted);}
   .empty-state .big{font-size:34px;margin-bottom:8px;}
@@ -264,6 +265,7 @@
       <option value="تحت التنفيذ">تحت التنفيذ</option>
       <option value="منتهي">منتهي</option>
       <option value="ملغى">ملغى</option>
+      <option value="بلا">بلا</option>
     </select>
     <button class="btn btn-gold" id="btnAdd">+ إضافة قرار جديد</button>
   </div>
@@ -408,6 +410,7 @@
             <option value="تحت التنفيذ">تحت التنفيذ</option>
             <option value="منتهي">منتهي</option>
             <option value="ملغى">ملغى</option>
+            <option value="بلا">بلا</option>
           </select>
         </div>
         <div class="full">
@@ -599,6 +602,7 @@ function toast(msg){
 function statusDot(status){
   if(status === 'نافذ') return 'dot-ok';
   if(status === 'منتهي' || status === 'ملغى') return 'dot-stop';
+  if(status === 'بلا') return 'dot-none';
   return 'dot-warn';
 }
 function typeBadgeClass(type){
