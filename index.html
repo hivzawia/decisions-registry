@@ -644,7 +644,7 @@ async function loadData(){
   $('loadNote').textContent = 'جارٍ تحميل البيانات...';
   const { data, error } = await supabaseClient
     .from('decisions')
-    .select('*')
+    .select('id,direction,sender,number,year,date,type,subject,method,company,project,projects,location,value,office,municipality,referral_no,referral_date,referred_to,incoming_no,register_date,status,notes,attachment_name,attachment_type,created_at')
     .order('created_at', { ascending: false });
 
   if(error){
@@ -661,14 +661,18 @@ async function loadData(){
 
 const DB_LIMIT_MB = 500; // حد قاعدة البيانات بالخطة المجانية (500 ميجابايت) - المرفقات مخزنة كنص داخل الصفوف نفسها
 
-function updateStorageUsage(){
+async function updateStorageUsage(){
   const box = $('storageBox');
   if(!box) return;
-  const totalBytes = decisions.reduce((sum, d)=>{
-    const b64 = d.attachmentData || '';
-    // base64 يشغل تقريباً 4/3 من حجم الملف الأصلي بالبايت
-    return sum + Math.round(b64.length * 0.75);
-  }, 0);
+  box.innerHTML = '<div class="row"><span>جارٍ حساب المساحة المستخدمة...</span></div>';
+
+  const { data, error } = await supabaseClient.rpc('decisions_attachments_total_size');
+  if(error){
+    box.innerHTML = '<div class="row"><span style="color:#c0392b;">تعذر حساب المساحة (يحتاج إعداد دالة SQL مرة واحدة، راجعي التعليمات)</span></div>';
+    return;
+  }
+
+  const totalBytes = Math.round((data||0) * 0.75);
   const usedMB = totalBytes / (1024*1024);
   const pct = Math.min(100, (usedMB / DB_LIMIT_MB) * 100);
   const warn = pct >= 80;
@@ -833,16 +837,25 @@ function readFileAsDataURL(file){
   });
 }
 
-window.openAttachment = function(id){
+window.openAttachment = async function(id){
   const d = decisions.find(x=>x.id===id);
   if(!d || !d.attachmentName) return;
   $('attachTitle').textContent = 'المرفق — قرار رقم ' + (d.number || '');
   $('attachOverlay').classList.add('open');
-  const dataUrl = d.attachmentData;
-  if(!dataUrl){
+  $('attachBody').innerHTML = '<div style="padding:30px;color:var(--muted);">جارٍ تحميل المرفق...</div>';
+
+  const { data: row, error } = await supabaseClient
+    .from('decisions')
+    .select('attachment_data')
+    .eq('id', id)
+    .single();
+
+  if(error || !row || !row.attachment_data){
     $('attachBody').innerHTML = '<div style="padding:30px;color:var(--muted);">تعذر العثور على الملف.</div>';
     return;
   }
+  const dataUrl = row.attachment_data;
+  d.attachmentData = dataUrl; // كاش محلي لتفادي إعادة التحميل لو فتحته مرة ثانية بنفس الجلسة
   $('attachDownload').href = dataUrl;
   $('attachDownload').setAttribute('download', d.attachmentName);
   if(d.attachmentType === 'application/pdf'){
@@ -924,7 +937,14 @@ $('decisionForm').addEventListener('submit', async (e)=>{
     }
   }
 
-  const { error } = await supabaseClient.from('decisions').upsert(toDbRow(record));
+  const dbRow = toDbRow(record);
+  if(editingId && !file){
+    // ما رفعنا ملف جديد، وبيانات المرفق الحالية مو محمّلة أصلاً (لتخفيف التحميل) — نشيلها من عملية الحفظ عشان ما نمسح المرفق الموجود بالخطأ
+    delete dbRow.attachment_data;
+    delete dbRow.attachment_name;
+    delete dbRow.attachment_type;
+  }
+  const { error } = await supabaseClient.from('decisions').upsert(dbRow);
   if(error){
     toast('تعذر حفظ القرار: ' + error.message);
     return;
