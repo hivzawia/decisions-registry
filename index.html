@@ -707,7 +707,8 @@ function getFiltered(){
         if(!hay.includes(q)) return false;
       }
       return true;
-    });
+    })
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
 }
 
 function render(){
