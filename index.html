@@ -243,8 +243,6 @@
     </div>
     <div class="stat-strip">
       <div class="stat-pill"><span class="n" id="statTotal">0</span><span class="l">إجمالي القرارات</span></div>
-      <div class="stat-pill"><span class="n" id="statAuthorize">0</span><span class="l">يؤذن</span></div>
-      <div class="stat-pill"><span class="n" id="statApprove">0</span><span class="l">يعتمد</span></div>
     </div>
     <button class="btn btn-ghost btn-sm" id="btnLogout" style="background:rgba(244,241,232,.1);color:#f4f1e8;border-color:rgba(244,241,232,.3);">تسجيل الخروج</button>
   </header>
@@ -332,6 +330,8 @@
             <option value="يؤذن">يؤذن</option>
             <option value="يعتمد">يعتمد</option>
             <option value="يقرر">يقرر</option>
+            <option value="يشكل">يشكل (لجنة)</option>
+            <option value="يمدد">يمدد (عقد)</option>
             <option value="آخر">آخر</option>
           </select>
         </div>
@@ -350,23 +350,37 @@
             <option value="أخرى">أخرى</option>
           </select>
         </div>
-        <div class="full">
-          <label>المشاريع (كل مشروع بشركته وقيمته الخاصة)</label>
-          <div id="projectsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input type="text" id="f_projectInput" placeholder="اسم المشروع" style="flex:1;min-width:140px;">
-            <input type="text" id="f_projectCompanyInput" placeholder="الشركة / المقاول" style="flex:1;min-width:140px;">
-            <input type="number" step="0.001" id="f_projectValueInput" placeholder="القيمة (د.ل)" style="width:140px;">
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddProject">+ إضافة مشروع</button>
+        <div class="full" id="committeeNote" style="display:none;">
+          <div style="background:#eef4fb;border:1px solid #cfe0f0;border-radius:6px;padding:10px 12px;font-size:12.5px;color:#345;">
+            قرار تشكيل — حقول الشركة والمشروع والقيمة مخفية تلقائياً لأنها غير مناسبة لهذا النوع. اكتبي أسماء الأعضاء ومناصبهم بخانة الملاحظات بالأسفل.
           </div>
         </div>
-        <div>
-          <label>الموقع / المنطقة</label>
-          <input type="text" id="f_location">
+        <div id="contractFieldsWrap">
+          <div class="full">
+            <label>المشاريع (كل مشروع بشركته وقيمته الخاصة)</label>
+            <div id="projectsList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input type="text" id="f_projectInput" placeholder="اسم المشروع" style="flex:1;min-width:140px;">
+              <input type="text" id="f_projectCompanyInput" placeholder="الشركة / المقاول" style="flex:1;min-width:140px;">
+              <input type="number" step="0.001" id="f_projectValueInput" placeholder="القيمة (د.ل)" style="width:140px;">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnAddProject">+ إضافة مشروع</button>
+            </div>
+          </div>
+          <div>
+            <label>الموقع / المنطقة</label>
+            <input type="text" id="f_location">
+          </div>
+          <div>
+            <label>القيمة الإجمالية (د.ل)</label>
+            <input type="number" step="0.001" id="f_value" readonly style="background:#f3f1e9;">
+          </div>
         </div>
-        <div>
-          <label>القيمة الإجمالية (د.ل)</label>
-          <input type="number" step="0.001" id="f_value" readonly style="background:#f3f1e9;">
+        <div class="full" id="extendFieldWrap" style="display:none;">
+          <div style="background:#eef4fb;border:1px solid #cfe0f0;border-radius:6px;padding:10px 12px;font-size:12.5px;color:#345;margin-bottom:8px;">
+            قرار تمديد — حدّدي تاريخ نهاية التمديد الجديد
+          </div>
+          <label>تاريخ نهاية التمديد الجديد</label>
+          <input type="date" id="f_extendedUntil">
         </div>
         <div>
           <label>مكتب الجهاز</label>
@@ -468,6 +482,7 @@ function toDbRow(d){
     year: d.year || null,
     date: d.date || null,
     type: d.type || null,
+    extended_until: d.extendedUntil || null,
     subject: d.subject || null,
     method: d.method || null,
     company: d.company || null,
@@ -493,7 +508,7 @@ function fromDbRow(r){
   return {
     id: r.id,
     direction: r.direction || 'صادر', sender: r.sender,
-    number: r.number, year: r.year, date: r.date, type: r.type,
+    number: r.number, year: r.year, date: r.date, type: r.type, extendedUntil: r.extended_until,
     subject: r.subject, method: r.method, company: r.company, project: r.project,
     projects: Array.isArray(r.projects) ? r.projects : (r.project ? [r.project] : []),
     location: r.location, value: r.value, office: r.office, municipality: r.municipality,
@@ -577,6 +592,16 @@ window.toggleProjectsRow = function(id){
   if(row) row.style.display = row.style.display === 'none' ? '' : 'none';
 };
 
+function toggleTypeFields(){
+  const type = $('f_type').value;
+  const isCommittee = type === 'يشكل';
+  const isExtend = type === 'يمدد';
+  $('contractFieldsWrap').style.display = isCommittee ? 'none' : '';
+  $('committeeNote').style.display = isCommittee ? '' : 'none';
+  $('extendFieldWrap').style.display = isExtend ? '' : 'none';
+}
+$('f_type').addEventListener('change', toggleTypeFields);
+
 function toggleDirectionFields(){
   const isIncoming = $('f_direction').value === 'وارد';
   $('senderWrap').style.display = isIncoming ? '' : 'none';
@@ -644,7 +669,7 @@ async function loadData(){
   $('loadNote').textContent = 'جارٍ تحميل البيانات...';
   const { data, error } = await supabaseClient
     .from('decisions')
-    .select('id,direction,sender,number,year,date,type,subject,method,company,project,projects,location,value,office,municipality,referral_no,referral_date,referred_to,incoming_no,register_date,status,notes,attachment_name,attachment_type,created_at')
+    .select('id,direction,sender,number,year,date,type,extended_until,subject,method,company,project,projects,location,value,office,municipality,referral_no,referral_date,referred_to,incoming_no,register_date,status,notes,attachment_name,attachment_type,created_at')
     .order('created_at', { ascending: false });
 
   if(error){
@@ -761,8 +786,6 @@ function render(){
   });
 
   $('statTotal').textContent = filtered.length;
-  $('statAuthorize').textContent = filtered.filter(d=>d.type==='يؤذن').length;
-  $('statApprove').textContent = filtered.filter(d=>d.type==='يعتمد').length;
 }
 
 function openModal(){ $('overlay').classList.add('open'); }
@@ -780,6 +803,8 @@ function openAdd(){
   $('modalTitle').textContent = 'إضافة قرار جديد';
   $('f_direction').value = currentTab;
   toggleDirectionFields();
+  $('f_type').value = 'يؤذن';
+  toggleTypeFields();
   pendingProjects = [];
   editingProjectIndex = null;
   $('btnAddProject').textContent = '+ إضافة مشروع';
@@ -809,6 +834,8 @@ window.openEdit = function(id){
   $('f_year').value = d.year || '';
   $('f_date').value = d.date || '';
   $('f_type').value = d.type || 'يؤذن';
+  $('f_extendedUntil').value = d.extendedUntil || '';
+  toggleTypeFields();
   $('f_subject').value = d.subject || '';
   $('f_method').value = d.method || '';
   $('f_location').value = d.location || '';
@@ -899,6 +926,7 @@ $('decisionForm').addEventListener('submit', async (e)=>{
     year: $('f_year').value.trim(),
     date: $('f_date').value,
     type: $('f_type').value,
+    extendedUntil: $('f_type').value === 'يمدد' ? ($('f_extendedUntil').value || null) : null,
     subject: $('f_subject').value.trim(),
     method: $('f_method').value,
     company: uniqueCompaniesLabel(pendingProjects),
