@@ -69,12 +69,15 @@
   }
   .stat-pill .n{font-size:18px;font-weight:700;color:var(--gold);display:block;}
   .stat-pill .l{font-size:10.5px;color:#cdd6e0;}
+  #statsCard .stat-pill{background:#f7f5ee;border-color:#e5e0d2;}
+  #statsCard .stat-pill .l{color:#6b6b6b;}
   .storage-box{background:#fff;border:1px solid var(--line,#ddd);border-radius:6px;padding:10px 14px;margin:14px 0;font-size:12.5px;color:#666;}
   .storage-box .row{display:flex;justify-content:space-between;margin-bottom:6px;}
   .tabs{display:flex;gap:8px;margin-bottom:14px;border-bottom:2px solid var(--line,#e5e0d2);}
   .tab-btn{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:inherit;}
   .tab-btn.active{color:#1C2B39;border-bottom-color:#c9a227;}
   .tab-btn:hover{color:#1C2B39;}
+  .tab-btn.sub{font-size:12.5px;padding:8px 14px;border-bottom-width:2px;}
   .storage-bar-bg{background:#eee;border-radius:10px;height:7px;overflow:hidden;}
   .storage-bar-fill{height:100%;background:#c9a227;border-radius:10px;transition:width .3s;}
   .storage-bar-fill.warn{background:#c0392b;}
@@ -211,6 +214,7 @@
   .login-hidden{display:none !important;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 
 </head>
 <body>
@@ -241,13 +245,8 @@
         <p>جهاز تنفيذ مشروعات الإسكان والمرافق — مكتب الزاوية</p>
       </div>
     </div>
-    <div class="stat-strip">
-      <div class="stat-pill"><span class="n" id="statTotal">0</span><span class="l">إجمالي القرارات</span></div>
-    </div>
     <button class="btn btn-ghost btn-sm" id="btnLogout" style="background:rgba(244,241,232,.1);color:#f4f1e8;border-color:rgba(244,241,232,.3);">تسجيل الخروج</button>
   </header>
-
-  <div class="storage-box" id="storageBox"></div>
 
   <div class="tabs" id="directionTabs">
     <button type="button" class="tab-btn active" data-dir="صادر">📤 القرارات الصادرة</button>
@@ -256,14 +255,15 @@
 
   <div class="toolbar">
     <input type="text" id="searchBox" placeholder="ابحث برقم القرار، الموضوع، الشركة، المشروع، أو البلدية...">
-    <select id="filterStatus">
-      <option value="">كل الحالات</option>
-      <option value="نافذ">نافذ</option>
-      <option value="قيد المتابعة">قيد المتابعة</option>
-      <option value="تحت التنفيذ">تحت التنفيذ</option>
-      <option value="منتهي">منتهي</option>
-      <option value="ملغى">ملغى</option>
-      <option value="بلا">بلا</option>
+    <select id="filterType">
+      <option value="">كل الأنواع</option>
+      <option value="يؤذن">يؤذن</option>
+      <option value="يعتمد">يعتمد</option>
+      <option value="يقرر">يقرر</option>
+      <option value="يشكل">يشكل (لجنة)</option>
+      <option value="يمدد">يمدد (عقد)</option>
+      <option value="عهدة مالية">عهدة مالية</option>
+      <option value="آخر">آخر</option>
     </select>
     <button class="btn btn-gold" id="btnAdd">+ إضافة قرار جديد</button>
   </div>
@@ -271,7 +271,7 @@
   <div class="card">
     <div class="table-scroll">
       <table id="decisionsTable">
-        <thead>
+        <thead id="tableHead">
           <tr>
             <th>م</th>
             <th>رقم القرار</th>
@@ -279,9 +279,10 @@
             <th>الموضوع</th>
             <th>نوع الإجراء</th>
             <th>الشركة / المشروع</th>
-            <th>البلدية</th>
+            <th id="thExtend">تاريخ التمديد</th>
             <th>القيمة (د.ل)</th>
             <th>الحالة</th>
+            <th>ملاحظات</th>
             <th>المرفق</th>
             <th>إجراءات</th>
           </tr>
@@ -292,6 +293,29 @@
     <div class="empty-state" id="emptyState" style="display:none;">
       <div class="big">📋</div>
       <div>لا توجد قرارات مسجلة بعد. اضغط "إضافة قرار جديد" للبدء.</div>
+    </div>
+  </div>
+
+  <div class="storage-box" id="storageBox"></div>
+
+  <div class="card" id="statsCard" style="padding:16px 18px;margin-top:16px;">
+    <div style="font-weight:700;color:var(--navy,#1C2B39);margin-bottom:12px;font-size:14px;">📊 إحصائيات (حسب التبويب والفلاتر الحالية)</div>
+    <div class="stat-strip" style="margin-bottom:20px;">
+      <div class="stat-pill"><span class="n" id="statTotal">0</span><span class="l">إجمالي القرارات</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr;gap:22px;">
+      <div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">الاتجاه الزمني (عدد القرارات شهرياً)</div>
+        <canvas id="chartTrend" height="140"></canvas>
+      </div>
+      <div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">أكثر الشركات تعاملاً</div>
+        <canvas id="chartCompanies" height="140"></canvas>
+      </div>
+      <div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">عدد القرارات حسب البلدية</div>
+        <canvas id="chartMunicipality" height="140"></canvas>
+      </div>
     </div>
   </div>
 
@@ -332,6 +356,7 @@
             <option value="يقرر">يقرر</option>
             <option value="يشكل">يشكل (لجنة)</option>
             <option value="يمدد">يمدد (عقد)</option>
+            <option value="عهدة مالية">عهدة مالية</option>
             <option value="آخر">آخر</option>
           </select>
         </div>
@@ -351,21 +376,31 @@
           </select>
         </div>
         <div class="full" id="committeeNote" style="display:none;">
-          <div style="background:#eef4fb;border:1px solid #cfe0f0;border-radius:6px;padding:10px 12px;font-size:12.5px;color:#345;">
-            قرار تشكيل — حقول الشركة والمشروع والقيمة مخفية تلقائياً لأنها غير مناسبة لهذا النوع. أضيفي أعضاء اللجنة بالأسفل (الاسم، الصفة، التخصص).
+          <label>أعضاء اللجنة</label>
+          <div id="membersList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="f_memberName" placeholder="اسم العضو" style="flex:1;min-width:140px;">
+            <input type="text" id="f_memberRole" placeholder="المنصب (رئيساً، عضو مالي...)" style="flex:1;min-width:140px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddMember">+ إضافة عضو</button>
           </div>
         </div>
-        <div class="full" id="committeeFieldsWrap" style="display:none;">
-          <label>أعضاء اللجنة</label>
-          <div id="committeeMembersList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input type="text" id="f_memberNameInput" placeholder="اسم العضو" style="flex:1;min-width:140px;">
-            <select id="f_memberRoleInput" style="min-width:110px;">
-              <option value="رئيساً">رئيساً</option>
-              <option value="عضو" selected>عضو</option>
-            </select>
-            <input type="text" id="f_memberSpecialtyInput" placeholder="التخصص (إداري/مالي/فني/قانوني...)" style="flex:1;min-width:140px;">
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddMember">+ إضافة عضو</button>
+        <div class="full" id="treasuryFieldsWrap" style="display:none;">
+          <div style="background:#eef4fb;border:1px solid #cfe0f0;border-radius:6px;padding:10px 12px;font-size:12.5px;color:#345;margin-bottom:10px;">
+            قرار صرف عهدة مالية — حقول الشركة والمشروع مخفية تلقائياً
+          </div>
+          <div class="form-grid" style="padding:0;">
+            <div>
+              <label>المستفيد</label>
+              <input type="text" id="f_beneficiary" placeholder="اسم المستفيد">
+            </div>
+            <div>
+              <label>القيمة (د.ل)</label>
+              <input type="number" step="0.001" id="f_treasuryValue" placeholder="القيمة">
+            </div>
+            <div class="full">
+              <label>الغرض</label>
+              <input type="text" id="f_purpose" placeholder="الغرض من صرف العهدة">
+            </div>
           </div>
         </div>
         <div id="contractFieldsWrap">
@@ -484,7 +519,7 @@ let decisions = [];
 let editingId = null;
 let currentTab = 'صادر';
 let pendingProjects = [];
-let pendingCommitteeMembers = [];
+let pendingMembers = [];
 
 // تحويل بين شكل الحقول بالواجهة (camelCase) وشكل أعمدة قاعدة البيانات (snake_case)
 function toDbRow(d){
@@ -497,12 +532,14 @@ function toDbRow(d){
     date: d.date || null,
     type: d.type || null,
     extended_until: d.extendedUntil || null,
+    members: d.members && d.members.length ? d.members : null,
+    beneficiary: d.beneficiary || null,
+    purpose: d.purpose || null,
     subject: d.subject || null,
     method: d.method || null,
     company: d.company || null,
     project: d.project || null,
     projects: d.projects && d.projects.length ? d.projects : null,
-    committee_members: d.committeeMembers && d.committeeMembers.length ? d.committeeMembers : null,
     location: d.location || null,
     value: (d.value === '' || d.value === undefined || d.value === null) ? null : Number(d.value),
     office: d.office || null,
@@ -524,9 +561,10 @@ function fromDbRow(r){
     id: r.id,
     direction: r.direction || 'صادر', sender: r.sender,
     number: r.number, year: r.year, date: r.date, type: r.type, extendedUntil: r.extended_until,
+    members: Array.isArray(r.members) ? r.members : [],
+    beneficiary: r.beneficiary, purpose: r.purpose,
     subject: r.subject, method: r.method, company: r.company, project: r.project,
     projects: Array.isArray(r.projects) ? r.projects : (r.project ? [r.project] : []),
-    committeeMembers: Array.isArray(r.committee_members) ? r.committee_members : [],
     location: r.location, value: r.value, office: r.office, municipality: r.municipality,
     referralNo: r.referral_no, referralDate: r.referral_date, referredTo: r.referred_to,
     incomingNo: r.incoming_no, registerDate: r.register_date, status: r.status, notes: r.notes,
@@ -608,77 +646,47 @@ window.toggleProjectsRow = function(id){
   if(row) row.style.display = row.style.display === 'none' ? '' : 'none';
 };
 
-// ====== أعضاء اللجنة (لقرارات التشكيل) ======
-let editingMemberIndex = null;
+function toggleTypeFields(){
+  const type = $('f_type').value;
+  const isCommittee = type === 'يشكل';
+  const isExtend = type === 'يمدد';
+  const isTreasury = type === 'عهدة مالية';
+  $('contractFieldsWrap').style.display = (isCommittee || isTreasury) ? 'none' : '';
+  $('committeeNote').style.display = isCommittee ? '' : 'none';
+  $('treasuryFieldsWrap').style.display = isTreasury ? '' : 'none';
+  $('extendFieldWrap').style.display = isExtend ? '' : 'none';
+}
+$('f_type').addEventListener('change', toggleTypeFields);
 
-function renderCommitteeList(){
-  const box = $('committeeMembersList');
-  if(!pendingCommitteeMembers.length){
-    box.innerHTML = '<div style="font-size:12px;color:var(--muted);">لا يوجد أعضاء مضافون بعد</div>';
+function renderMembersList(){
+  const box = $('membersList');
+  if(!pendingMembers.length){
+    box.innerHTML = '<div style="font-size:12px;color:var(--muted);">لا يوجد أعضاء مضافين بعد</div>';
     return;
   }
-  box.innerHTML = pendingCommitteeMembers.map((m, i)=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;background:${i===editingMemberIndex ? '#fdf3d9' : '#f7f5ee'};border:1px solid var(--line,#e5e0d2);border-radius:5px;padding:6px 10px;gap:8px;">
-      <span style="font-size:13px;flex:1;">
-        <strong>${m.name}</strong>${m.role ? ' — '+m.role : ''}${m.specialty ? ' ('+m.specialty+')' : ''}
-      </span>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="editMemberAt(${i})" style="padding:2px 8px;">تعديل</button>
+  box.innerHTML = pendingMembers.map((m, i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#f7f5ee;border:1px solid var(--line,#e5e0d2);border-radius:5px;padding:6px 10px;gap:8px;">
+      <span style="font-size:13px;flex:1;"><strong>${m.name}</strong>${m.role ? ' — '+m.role : ''}</span>
       <button type="button" class="btn btn-ghost btn-sm" onclick="removeMemberAt(${i})" style="padding:2px 8px;">حذف</button>
     </div>
   `).join('');
 }
 window.removeMemberAt = function(i){
-  pendingCommitteeMembers.splice(i, 1);
-  if(editingMemberIndex === i){ cancelMemberEdit(); }
-  renderCommitteeList();
+  pendingMembers.splice(i, 1);
+  renderMembersList();
 };
-window.editMemberAt = function(i){
-  const m = pendingCommitteeMembers[i];
-  $('f_memberNameInput').value = m.name || '';
-  $('f_memberRoleInput').value = m.role || 'عضو';
-  $('f_memberSpecialtyInput').value = m.specialty || '';
-  editingMemberIndex = i;
-  $('btnAddMember').textContent = '✓ تحديث العضو';
-  renderCommitteeList();
-};
-function cancelMemberEdit(){
-  editingMemberIndex = null;
-  $('btnAddMember').textContent = '+ إضافة عضو';
-  $('f_memberNameInput').value = ''; $('f_memberRoleInput').value = 'عضو'; $('f_memberSpecialtyInput').value = '';
-}
 $('btnAddMember').addEventListener('click', ()=>{
-  const nameInput = $('f_memberNameInput');
-  const roleInput = $('f_memberRoleInput');
-  const specialtyInput = $('f_memberSpecialtyInput');
+  const nameInput = $('f_memberName');
+  const roleInput = $('f_memberRole');
   const name = nameInput.value.trim();
   if(!name) return;
-  const entry = {
-    name,
-    role: roleInput.value,
-    specialty: specialtyInput.value.trim()
-  };
-  if(editingMemberIndex !== null){
-    pendingCommitteeMembers[editingMemberIndex] = entry;
-  } else {
-    pendingCommitteeMembers.push(entry);
-  }
-  cancelMemberEdit();
-  renderCommitteeList();
+  pendingMembers.push({ name, role: roleInput.value.trim() });
+  nameInput.value = ''; roleInput.value = '';
+  renderMembersList();
 });
-$('f_memberNameInput').addEventListener('keydown', (e)=>{
+$('f_memberName').addEventListener('keydown', (e)=>{
   if(e.key === 'Enter'){ e.preventDefault(); $('btnAddMember').click(); }
 });
-
-function toggleTypeFields(){
-  const type = $('f_type').value;
-  const isCommittee = type === 'يشكل';
-  const isExtend = type === 'يمدد';
-  $('contractFieldsWrap').style.display = isCommittee ? 'none' : '';
-  $('committeeNote').style.display = isCommittee ? '' : 'none';
-  $('committeeFieldsWrap').style.display = isCommittee ? '' : 'none';
-  $('extendFieldWrap').style.display = isExtend ? '' : 'none';
-}
-$('f_type').addEventListener('change', toggleTypeFields);
 
 function toggleDirectionFields(){
   const isIncoming = $('f_direction').value === 'وارد';
@@ -687,13 +695,22 @@ function toggleDirectionFields(){
 }
 $('f_direction').addEventListener('change', toggleDirectionFields);
 
+function toggleExtendColumn(){
+  const show = currentTab === 'صادر';
+  $('thExtend').style.display = show ? '' : 'none';
+  document.querySelectorAll('.extend-col').forEach(td=> td.style.display = show ? '' : 'none');
+}
+
 document.querySelectorAll('#directionTabs .tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     currentTab = btn.dataset.dir;
     document.querySelectorAll('#directionTabs .tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    $('filterType').style.display = currentTab === 'صادر' ? '' : 'none';
+    if(currentTab !== 'صادر'){ $('filterType').value = ''; }
     render();
   });
 });
+$('filterType').addEventListener('change', render);
 
 function toast(msg){
   const t = $('toast');
@@ -729,13 +746,13 @@ function uniqueCompaniesLabel(projects){
 }
 
 function companyProjectCell(d){
-  if(d.type === 'يشكل' && Array.isArray(d.committeeMembers) && d.committeeMembers.length){
-    const head = d.committeeMembers[0];
-    const headLabel = `<div>${head.name}${head.role ? ' — '+head.role : ''}</div>`;
-    const restLabel = d.committeeMembers.length > 1
-      ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">و${d.committeeMembers.length - 1} أعضاء آخرين</div>`
-      : '';
-    return headLabel + restLabel;
+  if(d.type === 'يشكل'){
+    const count = Array.isArray(d.members) ? d.members.length : 0;
+    if(!count) return '—';
+    return `<div style="font-size:11.5px;color:var(--gold,#c9a227);cursor:pointer;text-decoration:underline;" onclick="toggleProjectsRow('${d.id}')">▾ ${count} أعضاء (اضغط للعرض)</div>`;
+  }
+  if(d.type === 'عهدة مالية'){
+    return d.beneficiary ? `<div>${d.beneficiary}</div>` : '—';
   }
   const projects = Array.isArray(d.projects) && d.projects.length
     ? d.projects.map(p=> typeof p === 'string' ? {name:p, company:d.company||''} : p)
@@ -755,7 +772,7 @@ async function loadData(){
   $('loadNote').textContent = 'جارٍ تحميل البيانات...';
   const { data, error } = await supabaseClient
     .from('decisions')
-    .select('id,direction,sender,number,year,date,type,extended_until,subject,method,company,project,projects,committee_members,location,value,office,municipality,referral_no,referral_date,referred_to,incoming_no,register_date,status,notes,attachment_name,attachment_type,created_at')
+    .select('id,direction,sender,number,year,date,type,extended_until,members,beneficiary,purpose,subject,method,company,project,projects,location,value,office,municipality,referral_no,referral_date,referred_to,incoming_no,register_date,status,notes,attachment_name,attachment_type,created_at')
     .order('created_at', { ascending: false });
 
   if(error){
@@ -808,11 +825,11 @@ function renderOfficeFilter(){
 
 function getFiltered(){
   const q = $('searchBox').value.trim().toLowerCase();
-  const status = $('filterStatus').value;
+  const typeFilter = $('filterType').value;
   return decisions
     .filter(d=>{
       if((d.direction || 'صادر') !== currentTab) return false;
-      if(status && d.status !== status) return false;
+      if(typeFilter && d.type !== typeFilter) return false;
       if(q){
         const hay = [d.number,d.subject,d.company,d.office,d.project,d.municipality,d.sender].join(' ').toLowerCase();
         if(!hay.includes(q)) return false;
@@ -820,6 +837,84 @@ function getFiltered(){
       return true;
     })
     .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+}
+
+let chartInstances = { trend: null, companies: null, municipality: null };
+
+function monthLabel(dateStr){
+  if(!dateStr) return null;
+  const m = dateStr.match(/^(\d{4})-(\d{2})/);
+  if(!m) return null;
+  const names = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  return names[parseInt(m[2],10)-1] + ' ' + m[1];
+}
+
+function destroyChart(key){
+  if(chartInstances[key]){ chartInstances[key].destroy(); chartInstances[key] = null; }
+}
+
+function renderCharts(filtered){
+  if(typeof Chart === 'undefined') return;
+
+  // ====== الاتجاه الزمني (عدد القرارات شهرياً) ======
+  const trendMap = {};
+  filtered.forEach(d=>{
+    const label = monthLabel(d.date);
+    if(!label) return;
+    trendMap[label] = (trendMap[label]||0) + 1;
+  });
+  const trendEntries = Object.entries(trendMap).sort((a,b)=>{
+    // نرتب بحسب تاريخ فعلي مو أبجدي، عبر استخراج أول قرار مطابق لكل تسمية
+    const da = filtered.find(d=>monthLabel(d.date)===a[0])?.date || '';
+    const db = filtered.find(d=>monthLabel(d.date)===b[0])?.date || '';
+    return da.localeCompare(db);
+  });
+  destroyChart('trend');
+  chartInstances.trend = new Chart($('chartTrend'), {
+    type: 'line',
+    data: {
+      labels: trendEntries.map(e=>e[0]),
+      datasets: [{ label: 'عدد القرارات', data: trendEntries.map(e=>e[1]), borderColor:'#c9a227', backgroundColor:'rgba(201,162,39,.15)', tension:.3, fill:true }]
+    },
+    options: { plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } }
+  });
+
+  // ====== أكثر الشركات تعاملاً ======
+  const companyMap = {};
+  filtered.forEach(d=>{
+    const projects = Array.isArray(d.projects) && d.projects.length ? d.projects : (d.company ? [{company:d.company}] : []);
+    const seen = new Set();
+    projects.forEach(p=>{
+      const c = (typeof p === 'string') ? null : p.company;
+      if(c && !seen.has(c)){ companyMap[c] = (companyMap[c]||0) + 1; seen.add(c); }
+    });
+  });
+  const topCompanies = Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('companies');
+  chartInstances.companies = new Chart($('chartCompanies'), {
+    type: 'bar',
+    data: {
+      labels: topCompanies.map(e=>e[0]),
+      datasets: [{ label: 'عدد القرارات', data: topCompanies.map(e=>e[1]), backgroundColor:'#1C2B39' }]
+    },
+    options: { indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{ beginAtZero:true, ticks:{ precision:0 } } } }
+  });
+
+  // ====== عدد القرارات حسب البلدية ======
+  const muniMap = {};
+  filtered.forEach(d=>{
+    if(d.municipality){ muniMap[d.municipality] = (muniMap[d.municipality]||0) + 1; }
+  });
+  const topMuni = Object.entries(muniMap).sort((a,b)=>b[1]-a[1]);
+  destroyChart('municipality');
+  chartInstances.municipality = new Chart($('chartMunicipality'), {
+    type: 'bar',
+    data: {
+      labels: topMuni.map(e=>e[0]),
+      datasets: [{ label: 'عدد القرارات', data: topMuni.map(e=>e[1]), backgroundColor:'#c9a227' }]
+    },
+    options: { plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } }
+  });
 }
 
 function render(){
@@ -830,6 +925,7 @@ function render(){
 
   filtered.forEach((d, idx)=>{
     const tr = document.createElement('tr');
+    const notesShort = d.notes ? (d.notes.length > 40 ? d.notes.slice(0,40)+'…' : d.notes) : '—';
     tr.innerHTML = `
       <td>${idx+1}</td>
       <td><strong>${d.number || '—'}</strong>${d.year ? '/'+d.year : ''}</td>
@@ -837,9 +933,10 @@ function render(){
       <td class="subj-cell">${d.subject || '—'}</td>
       <td><span class="badge ${typeBadgeClass(d.type)}">${d.type || '—'}</span></td>
       <td class="subj-cell">${companyProjectCell(d)}</td>
-      <td>${d.municipality || '—'}</td>
+      <td class="extend-col">${d.extendedUntil ? fmtDate(d.extendedUntil) : '—'}</td>
       <td>${fmtNum(d.value)}</td>
       <td><span class="status-dot"><span class="dot ${statusDot(d.status)}"></span>${d.status || '—'}</span></td>
+      <td class="subj-cell" ${d.notes ? `title="${d.notes.replace(/"/g,'&quot;')}"` : ''}>${notesShort}</td>
       <td>
         ${d.attachmentName
           ? `<button class="btn btn-ghost btn-sm" onclick="openAttachment('${d.id}')">📎 ${d.attachmentType === 'application/pdf' ? 'PDF' : 'صورة'}</button>`
@@ -854,24 +951,39 @@ function render(){
     `;
     body.appendChild(tr);
 
-    const projects = Array.isArray(d.projects) && d.projects.length
-      ? d.projects.map(p=> typeof p === 'string' ? {name:p, company:d.company||'', value:null} : p)
-      : (d.project ? [{name:d.project, company:d.company||'', value:d.value||null}] : []);
-    if(projects.length > 1){
+    if(d.type === 'يشكل' && Array.isArray(d.members) && d.members.length){
       const detailTr = document.createElement('tr');
       detailTr.id = 'proj-detail-'+d.id;
       detailTr.style.display = 'none';
-      detailTr.innerHTML = `<td colspan="11" style="background:#f7f5ee;padding:10px 20px;">
-        <strong style="font-size:12.5px;">مشاريع القرار رقم ${d.number||''}:</strong>
+      detailTr.innerHTML = `<td colspan="12" style="background:#f7f5ee;padding:10px 20px;">
+        <strong style="font-size:12.5px;">أعضاء لجنة القرار رقم ${d.number||''}:</strong>
         <ul style="margin:6px 0 0;padding-inline-start:20px;font-size:12.5px;">
-          ${projects.map(p=>`<li>${p.name}${p.company ? ' — '+p.company : ''}${p.value ? ' — '+fmtNum(p.value)+' د.ل' : ''}</li>`).join('')}
+          ${d.members.map(m=>`<li>${m.name}${m.role ? ' — '+m.role : ''}</li>`).join('')}
         </ul>
       </td>`;
       body.appendChild(detailTr);
+    } else {
+      const projects = Array.isArray(d.projects) && d.projects.length
+        ? d.projects.map(p=> typeof p === 'string' ? {name:p, company:d.company||'', value:null} : p)
+        : (d.project ? [{name:d.project, company:d.company||'', value:d.value||null}] : []);
+      if(projects.length > 1){
+        const detailTr = document.createElement('tr');
+        detailTr.id = 'proj-detail-'+d.id;
+        detailTr.style.display = 'none';
+        detailTr.innerHTML = `<td colspan="12" style="background:#f7f5ee;padding:10px 20px;">
+          <strong style="font-size:12.5px;">مشاريع القرار رقم ${d.number||''}:</strong>
+          <ul style="margin:6px 0 0;padding-inline-start:20px;font-size:12.5px;">
+            ${projects.map(p=>`<li>${p.name}${p.company ? ' — '+p.company : ''}${p.value ? ' — '+fmtNum(p.value)+' د.ل' : ''}</li>`).join('')}
+          </ul>
+        </td>`;
+        body.appendChild(detailTr);
+      }
     }
   });
 
   $('statTotal').textContent = filtered.length;
+  toggleExtendColumn();
+  renderCharts(filtered);
 }
 
 function openModal(){ $('overlay').classList.add('open'); }
@@ -882,9 +994,6 @@ function closeModal(){
   pendingProjects = [];
   editingProjectIndex = null;
   $('btnAddProject').textContent = '+ إضافة مشروع';
-  pendingCommitteeMembers = [];
-  editingMemberIndex = null;
-  $('btnAddMember').textContent = '+ إضافة عضو';
 }
 
 function openAdd(){
@@ -898,10 +1007,11 @@ function openAdd(){
   editingProjectIndex = null;
   $('btnAddProject').textContent = '+ إضافة مشروع';
   renderProjectsList();
-  pendingCommitteeMembers = [];
-  editingMemberIndex = null;
-  $('btnAddMember').textContent = '+ إضافة عضو';
-  renderCommitteeList();
+  pendingMembers = [];
+  renderMembersList();
+  $('f_beneficiary').value = '';
+  $('f_treasuryValue').value = '';
+  $('f_purpose').value = '';
   openModal();
 }
 
@@ -923,15 +1033,16 @@ window.openEdit = function(id){
   editingProjectIndex = null;
   $('btnAddProject').textContent = '+ إضافة مشروع';
   renderProjectsList();
-  pendingCommitteeMembers = Array.isArray(d.committeeMembers) ? d.committeeMembers.map(m=>({...m})) : [];
-  editingMemberIndex = null;
-  $('btnAddMember').textContent = '+ إضافة عضو';
-  renderCommitteeList();
   $('f_number').value = d.number || '';
   $('f_year').value = d.year || '';
   $('f_date').value = d.date || '';
   $('f_type').value = d.type || 'يؤذن';
   $('f_extendedUntil').value = d.extendedUntil || '';
+  pendingMembers = Array.isArray(d.members) ? d.members.map(m=>({...m})) : [];
+  renderMembersList();
+  $('f_beneficiary').value = d.beneficiary || '';
+  $('f_treasuryValue').value = d.type === 'عهدة مالية' ? (d.value || '') : '';
+  $('f_purpose').value = d.purpose || '';
   toggleTypeFields();
   $('f_subject').value = d.subject || '';
   $('f_method').value = d.method || '';
@@ -1024,14 +1135,16 @@ $('decisionForm').addEventListener('submit', async (e)=>{
     date: $('f_date').value,
     type: $('f_type').value,
     extendedUntil: $('f_type').value === 'يمدد' ? ($('f_extendedUntil').value || null) : null,
+    members: $('f_type').value === 'يشكل' ? [...pendingMembers] : null,
+    beneficiary: $('f_type').value === 'عهدة مالية' ? $('f_beneficiary').value.trim() : null,
+    purpose: $('f_type').value === 'عهدة مالية' ? $('f_purpose').value.trim() : null,
     subject: $('f_subject').value.trim(),
     method: $('f_method').value,
     company: uniqueCompaniesLabel(pendingProjects),
     projects: [...pendingProjects],
     project: pendingProjects[0] ? pendingProjects[0].name : '',
-    committeeMembers: $('f_type').value === 'يشكل' ? [...pendingCommitteeMembers] : [],
     location: $('f_location').value.trim(),
-    value: $('f_value').value,
+    value: $('f_type').value === 'عهدة مالية' ? ($('f_treasuryValue').value || null) : $('f_value').value,
     office: $('f_office').value.trim(),
     municipality: $('f_municipality').value.trim(),
     referralNo: $('f_referralNo').value.trim(),
@@ -1090,7 +1203,6 @@ $('decisionForm').addEventListener('submit', async (e)=>{
 });
 
 $('searchBox').addEventListener('input', render);
-$('filterStatus').addEventListener('change', render);
 
 // ====== تسجيل الدخول / الخروج ======
 function showApp(){
