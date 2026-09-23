@@ -279,6 +279,7 @@
             <th>الموضوع</th>
             <th>نوع الإجراء</th>
             <th>الشركة / المشروع</th>
+            <th id="thMunicipality">البلدية</th>
             <th id="thExtend">تاريخ التمديد</th>
             <th>القيمة (د.ل)</th>
             <th>الحالة</th>
@@ -696,9 +697,13 @@ function toggleDirectionFields(){
 $('f_direction').addEventListener('change', toggleDirectionFields);
 
 function toggleExtendColumn(){
-  const show = currentTab === 'صادر';
-  $('thExtend').style.display = show ? '' : 'none';
-  document.querySelectorAll('.extend-col').forEach(td=> td.style.display = show ? '' : 'none');
+  const showExtend = currentTab === 'صادر';
+  $('thExtend').style.display = showExtend ? '' : 'none';
+  document.querySelectorAll('.extend-col').forEach(td=> td.style.display = showExtend ? '' : 'none');
+
+  const showMuni = currentTab === 'وارد';
+  $('thMunicipality').style.display = showMuni ? '' : 'none';
+  document.querySelectorAll('.muni-col').forEach(td=> td.style.display = showMuni ? '' : 'none');
 }
 
 document.querySelectorAll('#directionTabs .tab-btn').forEach(btn=>{
@@ -934,6 +939,7 @@ function render(){
       <td class="subj-cell">${d.subject || '—'}</td>
       <td><span class="badge ${typeBadgeClass(d.type)}">${d.type || '—'}</span></td>
       <td class="subj-cell">${companyProjectCell(d)}</td>
+      <td class="muni-col">${d.municipality || '—'}</td>
       <td class="extend-col">${d.extendedUntil ? fmtDate(d.extendedUntil) : '—'}</td>
       <td>${fmtNum(d.value)}</td>
       <td><span class="status-dot"><span class="dot ${statusDot(d.status)}"></span>${d.status || '—'}</span></td>
@@ -956,7 +962,7 @@ function render(){
       const detailTr = document.createElement('tr');
       detailTr.id = 'proj-detail-'+d.id;
       detailTr.style.display = 'none';
-      detailTr.innerHTML = `<td colspan="12" style="background:#f7f5ee;padding:10px 20px;">
+      detailTr.innerHTML = `<td colspan="13" style="background:#f7f5ee;padding:10px 20px;">
         <strong style="font-size:12.5px;">أعضاء لجنة القرار رقم ${d.number||''}:</strong>
         <ul style="margin:6px 0 0;padding-inline-start:20px;font-size:12.5px;">
           ${d.members.map(m=>`<li>${m.name}${m.role ? ' — '+m.role : ''}</li>`).join('')}
@@ -971,7 +977,7 @@ function render(){
         const detailTr = document.createElement('tr');
         detailTr.id = 'proj-detail-'+d.id;
         detailTr.style.display = 'none';
-        detailTr.innerHTML = `<td colspan="12" style="background:#f7f5ee;padding:10px 20px;">
+        detailTr.innerHTML = `<td colspan="13" style="background:#f7f5ee;padding:10px 20px;">
           <strong style="font-size:12.5px;">مشاريع القرار رقم ${d.number||''}:</strong>
           <ul style="margin:6px 0 0;padding-inline-start:20px;font-size:12.5px;">
             ${projects.map(p=>`<li>${p.name}${p.company ? ' — '+p.company : ''}${p.value ? ' — '+fmtNum(p.value)+' د.ل' : ''}</li>`).join('')}
